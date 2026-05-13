@@ -1,6 +1,5 @@
 import streamlit as st
 from google import genai
-import google.api_core.exceptions as exceptions
 from pptx import Presentation
 from pptx.util import Inches, Pt
 from PIL import Image
@@ -33,24 +32,22 @@ if api_key:
             slide = prs.slides.add_slide(prs.slide_layouts[6])
             img_bytes = uploaded_file.read()
             
-            # 1. 이미지는 즉시 배경으로 삽입 (분석 실패해도 결과물 보존)
+            # 배경 이미지는 즉시 삽입
             slide.shapes.add_picture(io.BytesIO(img_bytes), 0, 0, width=prs.slide_width, height=prs.slide_height)
             
-            with st.spinner(f'{uploaded_file.name} 분석 중... (2.0 Flash)'):
-                # --- 쿼터 보정 로직 시작 ---
-                max_retries = 5  # 재시도 횟수 상향
-                retry_delay = 15 # 초기 대기 시간 (초)
+            with st.spinner(f'{uploaded_file.name} 분석 중...'):
+                max_retries = 5  
+                retry_delay = 15 
                 
                 for attempt in range(max_retries):
                     try:
                         prompt = "Extract text and return as JSON array: [{'text': '...', 'x': 10, 'y': 20, 'w': 30, 'h': 5}]. Scale 0-100. Raw JSON only."
                         
                         response = client.models.generate_content(
-                            model="gemini-2.0-flash", # 사용자 요청에 따라 2.0 유지
+                            model="gemini-2.0-flash", 
                             contents=[prompt, Image.open(io.BytesIO(img_bytes))]
                         )
                         
-                        # JSON 추출 및 처리
                         res_text = response.text
                         start = res_text.find("[")
                         end = res_text.rfind("]") + 1
@@ -70,33 +67,27 @@ if api_key:
                                 p.text = str(block.get('text', ''))
                                 p.font.size = Pt(14)
                                 p.font.bold = True
-                            
-                            # 성공했으므로 다음 이미지로 이동
                             break 
                             
                     except Exception as e:
-                        error_msg = str(e)
-                        # 429 에러(Quota Exceeded)인 경우 대기 후 재시도
-                        if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
+                        error_msg = str(e).upper()
+                        # 429 에러 또는 할당량 부족 문구 확인
+                        if "429" in error_msg or "QUOTA" in error_msg or "EXHAUSTED" in error_msg:
                             if attempt < max_retries - 1:
-                                # 재시도할 때마다 대기 시간을 늘리는 지수 백오프 방식
                                 wait_time = retry_delay * (attempt + 1)
-                                st.warning(f"⚠️ 쿼터 제한 감지! {wait_time}초 대기 후 다시 시도합니다... ({attempt+1}/{max_retries})")
+                                st.warning(f"⚠️ 사용량 제한! {wait_time}초 후 다시 시도합니다... ({attempt+1}/{max_retries})")
                                 time.sleep(wait_time)
                             else:
-                                st.error(f"❌ {uploaded_file.name}: 할당량 초과로 분석을 포기합니다.")
+                                st.error(f"❌ {uploaded_file.name}: 할당량 부족으로 분석 실패.")
                         else:
-                            # 기타 에러는 즉시 중단
-                            st.error(f"❌ 오류 발생: {error_msg}")
+                            st.error(f"❌ 오류: {e}")
                             break
-                # --- 쿼터 보정 로직 종료 ---
             
             progress_bar.progress((idx + 1) / len(uploaded_files))
 
-        # 최종 저장
         output = io.BytesIO()
         prs.save(output)
-        st.success("✅ 모든 슬라이드 처리가 완료되었습니다!")
-        st.download_button("📥 PPT 다운로드", output.getvalue(), "gemini2_result.pptx")
+        st.success("✅ 처리가 완료되었습니다!")
+        st.download_button("📥 PPT 다운로드", output.getvalue(), "result.pptx")
 else:
     st.info("API 키를 등록해 주세요.")
