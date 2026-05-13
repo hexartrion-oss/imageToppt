@@ -10,9 +10,12 @@ st.title("🚀 범용 이미지-PPT 변환기")
 api_key = st.sidebar.text_input("Gemini API Key를 입력하세요", type="password")
 
 if api_key:
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-1.5-flash') # 범용 분석용 모델
+    genai.configure(api_key=api_key)# 기존 코드
+# model = genai.GenerativeModel('gemini-1.5-flash')
 
+# 수정 코드 (버전 명시)
+model = genai.GenerativeModel('models/gemini-1.5-flash') 
+# 또는 'models/gemini-1.5-flash-latest'
     # 2. 여러 이미지 업로드 가능
     uploaded_files = st.file_uploader("변환할 이미지들을 모두 선택하세요", accept_multiple_files=True, type=['jpg', 'png'])
 
